@@ -1,0 +1,107 @@
+:root {
+  /* Cold-storage vault palette: deep slate with a mint/teal signal accent. */
+  --bg-0: #060a0f;
+  --bg-1: #0a1017;
+  --bg-2: #0f1720;
+  --panel: rgba(18, 27, 37, 0.62);
+  --panel-solid: #121b25;
+  --border: rgba(120, 150, 170, 0.16);
+  --border-strong: rgba(120, 150, 170, 0.3);
+
+  --ink: #e7eef4;
+  --ink-dim: #9db0be;
+  --ink-faint: #62788a;
+
+  /* Signal accent: mint/teal on steel-blue. */
+  --accent: #35d0b5;
+  --accent-bright: #5ff0d6;
+  --accent-deep: #17806e;
+  --steel: #3d6d8f;
+  --steel-bright: #6ba9cf;
+
+  --warn: #f0a848;
+  --danger: #f26d6d;
+  --danger-solid: #f26d6d;
+  --good: #35d0b5;
+
+  --glow-accent: 0 0 24px rgba(53, 208, 181, 0.45);
+  --glow-steel: 0 0 22px rgba(107, 169, 207, 0.35);
+  --glow-danger: 0 0 22px rgba(242, 109, 109, 0.4);
+
+  --font-display: "Clash Display", "Inter", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --radius: 14px;
+  --radius-sm: 9px;
+  --maxw: 1120px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(1200px 700px at 50% -10%, rgba(53, 208, 181, 0.08), transparent 60%),
+    radial-gradient(900px 600px at 85% 20%, rgba(61, 109, 143, 0.1), transparent 55%),
+    var(--bg-0);
+  color: var(--ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  line-height: 1.5;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  margin: 0;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+a {
+  color: var(--accent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.glass {
+  background: var(--panel);
+  backdrop-filter: blur(14px) saturate(1.1);
+  -webkit-backdrop-filter: blur(14px) saturate(1.1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+button {
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
