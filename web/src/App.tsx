@@ -4,6 +4,7 @@ import { useVault } from "./useVault";
 import Hero from "./components/Hero";
 import ChunksDedup from "./components/ChunksDedup";
 import Distribution from "./components/Distribution";
+import FailureRestore from "./components/FailureRestore";
 import "./app.css";
 
 export default function App() {
@@ -34,6 +35,7 @@ export default function App() {
       <Hero vault={vault} />
       <ChunksDedup vault={vault} />
       <Distribution vault={vault} />
+      <FailureRestore vault={vault} />
     </div>
   );
 }

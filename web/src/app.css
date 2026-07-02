@@ -432,3 +432,29 @@
   background: rgba(107, 169, 207, 0.3);
   border: 1px solid var(--steel-bright);
 }
+
+/* Node toggle buttons */
+.sv-node-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.9rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: rgba(120, 150, 170, 0.08);
+  border: 1px solid var(--border-strong);
+  color: var(--ink);
+  transition: border-color 0.2s, background 0.2s;
+}
+.sv-node-toggle.is-up {
+  border-color: rgba(53, 208, 181, 0.35);
+}
+.sv-node-toggle.is-down {
+  border-color: rgba(242, 109, 109, 0.5);
+  color: var(--danger);
+  background: rgba(242, 109, 109, 0.08);
+}
+.sv-node-toggle .sv-file-meta {
+  color: var(--ink-faint);
+}
