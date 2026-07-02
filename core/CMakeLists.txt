@@ -49,3 +49,7 @@ add_test(NAME diff COMMAND test_diff)
 add_executable(test_retain tests/test_retain.cpp)
 target_link_libraries(test_retain PRIVATE svcore_lib)
 add_test(NAME retain COMMAND test_retain)
+
+add_executable(test_pitr tests/test_pitr.cpp)
+target_link_libraries(test_pitr PRIVATE svcore_lib)
+add_test(NAME pitr COMMAND test_pitr)

@@ -10,7 +10,8 @@ type RepairStats struct {
 	Scanned         int      // unique chunks examined
 	UnderReplicated int      // chunks below the replication factor before repair
 	Copied          int      // replica copies created
-	Unrepairable    []string // chunks with no surviving replica, sorted
+	CorruptFixed    int      // corrupted replicas overwritten from a good copy
+	Unrepairable    []string // chunks with no intact surviving replica, sorted
 }
 
 // RebalanceStats summarizes chunk movement during a topology change.
@@ -52,11 +53,13 @@ func (c *Cluster) UnderReplicatedChunks() []string {
 	return out
 }
 
-// Repair re-replicates every chunk whose live replica count has fallen below
-// the replication factor, copying from a surviving replica to up nodes that
-// do not yet hold it. Target nodes are chosen deterministically by walking
-// from the chunk's placement start. A chunk with no surviving replica is
-// reported as unrepairable.
+// Repair restores every chunk to full health. A replica only counts as live
+// if its node is up and its bytes still reproduce the chunk's
+// content-address; corrupted replicas are overwritten from an intact copy,
+// and chunks whose live count fell below the replication factor are copied
+// to up nodes that do not yet hold them. Target nodes are chosen
+// deterministically by walking from the chunk's placement start. A chunk
+// with no intact surviving replica is reported as unrepairable.
 func (c *Cluster) Repair() RepairStats {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -66,25 +69,41 @@ func (c *Cluster) Repair() RepairStats {
 	for _, hash := range c.allChunksLocked() {
 		st.Scanned++
 		var src []byte
+		var corrupt []*Node
 		live := 0
 		for _, node := range c.nodes {
 			if !node.up {
 				continue
 			}
-			if buf, ok := node.data[hash]; ok {
+			buf, ok := node.data[hash]
+			if !ok {
+				continue
+			}
+			if hashHex(buf) == hash {
 				live++
 				if src == nil {
 					src = buf
 				}
+			} else {
+				corrupt = append(corrupt, node)
 			}
 		}
-		if live >= c.replic {
+		if live >= c.replic && len(corrupt) == 0 {
 			continue
 		}
-		st.UnderReplicated++
+		if live < c.replic {
+			st.UnderReplicated++
+		}
 		if src == nil {
 			st.Unrepairable = append(st.Unrepairable, hash)
 			continue
+		}
+		for _, node := range corrupt {
+			buf := make([]byte, len(src))
+			copy(buf, src)
+			node.data[hash] = buf
+			st.CorruptFixed++
+			live++
 		}
 		start := placementStart(hash, n)
 		for i := 0; i < n && live < c.replic; i++ {

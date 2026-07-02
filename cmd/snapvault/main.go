@@ -26,6 +26,7 @@ usage:
   snapvault repair [--store DIR]
   snapvault add-node [--store DIR]
   snapvault remove-node <id> [--store DIR]
+  snapvault verify [--deep] [--store DIR]
   snapvault status [--store DIR]
 
 The cluster topology is fixed at 'put' time and persisted alongside the store.
@@ -72,16 +73,11 @@ func rehydrate(s *store.Store, storeRoot string) (*cluster.Cluster, error) {
 	if err != nil {
 		return nil, fmt.Errorf("no cluster: run 'snapvault put' first (%w)", err)
 	}
-	snapDir := filepath.Join(storeRoot, "snapshots")
-	entries, err := os.ReadDir(snapDir)
+	names, err := snapshotNames(storeRoot)
 	if err != nil {
-		return nil, fmt.Errorf("read snapshots: %w", err)
+		return nil, err
 	}
-	for _, e := range entries {
-		if e.IsDir() || filepath.Ext(e.Name()) != ".json" {
-			continue
-		}
-		name := e.Name()[:len(e.Name())-len(".json")]
+	for _, name := range names {
 		m, err := s.LoadManifest(name)
 		if err != nil {
 			return nil, err
@@ -119,6 +115,8 @@ func main() {
 		code = cmdAddNode(os.Args[2:])
 	case "remove-node":
 		code = cmdRemoveNode(os.Args[2:])
+	case "verify":
+		code = cmdVerify(os.Args[2:])
 	case "status":
 		code = cmdStatus(os.Args[2:])
 	case "-h", "--help", "help":
@@ -321,6 +319,94 @@ func printRebalance(st cluster.RebalanceStats) {
 	for _, h := range st.Skipped {
 		fmt.Printf("  SKIPPED %s (no up holder)\n", h)
 	}
+}
+
+func cmdVerify(args []string) int {
+	fs := flag.NewFlagSet("verify", flag.ExitOnError)
+	storeRoot := fs.String("store", "svstore", "content store root")
+	deep := fs.Bool("deep", false, "re-hash every replica on every node")
+	_ = fs.Parse(reorder(args))
+	s := store.Open(*storeRoot)
+	c, err := rehydrate(s, *storeRoot)
+	if err != nil {
+		return fail(err)
+	}
+
+	if !*deep {
+		// Shallow: confirm each unique chunk is fetchable and intact from at
+		// least one up replica.
+		checked, bad := 0, 0
+		names, err := snapshotNames(*storeRoot)
+		if err != nil {
+			return fail(err)
+		}
+		seen := map[string]bool{}
+		for _, name := range names {
+			m, err := s.LoadManifest(name)
+			if err != nil {
+				return fail(err)
+			}
+			for _, h := range m.UniqueChunks() {
+				if seen[h] {
+					continue
+				}
+				seen[h] = true
+				checked++
+				data, _, err := c.Get(h)
+				if err != nil || store.HashBytes(data) != h {
+					bad++
+					fmt.Printf("  BAD %s\n", h)
+				}
+			}
+		}
+		fmt.Printf("verify\n  chunks checked : %d\n  bad            : %d\n", checked, bad)
+		if bad > 0 {
+			fmt.Fprintln(os.Stderr, "verify FAILED")
+			return 1
+		}
+		fmt.Println("verify OK")
+		return 0
+	}
+
+	report := c.VerifyDeep()
+	totalChecked, totalBad := 0, 0
+	fmt.Println("verify --deep (every replica on every node)")
+	for _, nv := range report {
+		state := "up"
+		if !nv.Up {
+			state = "DOWN (skipped)"
+		}
+		fmt.Printf("  node %d: %-14s replicas=%d corrupt=%d\n",
+			nv.ID, state, nv.Checked, len(nv.Bad))
+		for _, h := range nv.Bad {
+			fmt.Printf("    CORRUPT %s\n", h)
+		}
+		totalChecked += nv.Checked
+		totalBad += len(nv.Bad)
+	}
+	fmt.Printf("  replicas checked : %d\n  corrupt          : %d\n", totalChecked, totalBad)
+	if totalBad > 0 {
+		fmt.Fprintln(os.Stderr, "deep verify FAILED: run 'snapvault repair' to restore from good replicas")
+		return 1
+	}
+	fmt.Println("deep verify OK")
+	return 0
+}
+
+// snapshotNames lists the snapshot manifests in the store, sorted.
+func snapshotNames(storeRoot string) ([]string, error) {
+	entries, err := os.ReadDir(filepath.Join(storeRoot, "snapshots"))
+	if err != nil {
+		return nil, fmt.Errorf("read snapshots: %w", err)
+	}
+	var names []string
+	for _, e := range entries {
+		if e.IsDir() || filepath.Ext(e.Name()) != ".json" {
+			continue
+		}
+		names = append(names, e.Name()[:len(e.Name())-len(".json")])
+	}
+	return names, nil
 }
 
 func cmdStatus(args []string) int {

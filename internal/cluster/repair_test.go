@@ -7,13 +7,20 @@ import (
 	"testing"
 )
 
-// seedChunks puts count distinct chunks and returns their hashes.
+// testPayload builds the i-th distinct chunk payload.
+func testPayload(i int) []byte {
+	return []byte(fmt.Sprintf("replica payload %03d", i))
+}
+
+// seedChunks puts count distinct content-addressed chunks and returns their
+// hashes, in payload order.
 func seedChunks(t *testing.T, c *Cluster, count int) []string {
 	t.Helper()
 	hashes := make([]string, 0, count)
 	for i := 0; i < count; i++ {
-		h := fmt.Sprintf("chunk-%03d", i)
-		c.Put(h, []byte("payload for "+h))
+		p := testPayload(i)
+		h := hashHex(p)
+		c.Put(h, p)
 		hashes = append(hashes, h)
 	}
 	return hashes
@@ -46,7 +53,7 @@ func TestRepairRestoresFullReplication(t *testing.T) {
 	}
 
 	// Every chunk is back to R live replicas and still readable.
-	for _, h := range hashes {
+	for i, h := range hashes {
 		if live := c.LiveReplicas(h); live != 3 {
 			t.Fatalf("chunk %s has %d live replicas after repair, want 3", h, live)
 		}
@@ -54,7 +61,7 @@ func TestRepairRestoresFullReplication(t *testing.T) {
 		if err != nil {
 			t.Fatalf("get %s after repair: %v", h, err)
 		}
-		if !bytes.Equal(got, []byte("payload for "+h)) {
+		if !bytes.Equal(got, testPayload(i)) {
 			t.Fatalf("chunk %s corrupted by repair", h)
 		}
 	}
@@ -127,7 +134,7 @@ func TestAddNodeRebalancesDeterministically(t *testing.T) {
 	// Post-rebalance invariant: every chunk sits exactly on its derived
 	// placement set for the new topology.
 	for i := 0; i < 40; i++ {
-		h := fmt.Sprintf("chunk-%03d", i)
+		h := hashHex(testPayload(i))
 		holders := c1.Holders(h)
 		want := c1.Placement(h)
 		if fmt.Sprint(holders) != fmt.Sprint(want) {
@@ -153,7 +160,7 @@ func TestRemoveNodeRebalancesAndPreservesData(t *testing.T) {
 	if st.ChunksMoved == 0 {
 		t.Fatal("removing a node should move a nonzero set of chunks")
 	}
-	for _, h := range hashes {
+	for i, h := range hashes {
 		holders := c.Holders(h)
 		want := c.Placement(h)
 		if fmt.Sprint(holders) != fmt.Sprint(want) {
@@ -163,7 +170,7 @@ func TestRemoveNodeRebalancesAndPreservesData(t *testing.T) {
 		if err != nil {
 			t.Fatalf("get %s after removal: %v", h, err)
 		}
-		if !bytes.Equal(got, []byte("payload for "+h)) {
+		if !bytes.Equal(got, testPayload(i)) {
 			t.Fatalf("chunk %s lost or corrupted by removal", h)
 		}
 	}

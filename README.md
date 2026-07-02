@@ -36,6 +36,7 @@ make demo      # full pipeline on a synthesized mock dataset
 ```
 svcore snapshot <name> <dir> [--store DIR] [--chunk N]
 svcore restore  <name> <dir> [--store DIR]
+svcore restore  --at <name> <dir> [--store DIR]
 svcore verify   [name]       [--store DIR]
 svcore drop     <name>       [--store DIR]
 svcore gc       [--dry-run]  [--store DIR]
@@ -51,6 +52,9 @@ remaining manifest references (`--dry-run` lists the candidates first);
 chunks still shared with other snapshots survive. `diff` compares two
 snapshots (files added, removed, changed, plus chunk-level stats), and
 `retain` keeps the newest N snapshots, drops the rest, and gc's the store.
+Every snapshot is a full point-in-time view: `restore --at <name>` rebuilds
+any historical snapshot byte-for-byte, no matter how many edits, deletions,
+or new files came after it.
 
 ### Go distribution layer: `snapvault`
 
@@ -62,6 +66,7 @@ snapvault recover  [--store DIR]
 snapvault repair   [--store DIR]
 snapvault add-node [--store DIR]
 snapvault remove-node <id> [--store DIR]
+snapvault verify   [--deep] [--store DIR]
 snapvault status   [--store DIR]
 ```
 
@@ -73,6 +78,9 @@ counts, replication health, and under-replicated chunks. `repair` re-replicates
 any chunk whose live replica count fell below R after node failures, copying
 from a surviving replica to healthy nodes. `add-node` and `remove-node` change
 the topology and rebalance placement, reporting how many chunks moved.
+`verify` confirms every chunk is fetchable and intact; `verify --deep`
+re-hashes every replica on every node and reports corruption per node, and a
+follow-up `repair` overwrites corrupt replicas from a good copy.
 
 ## `make demo` output
 
@@ -141,6 +149,25 @@ scripts/demo.sh      the make demo pipeline
 FORMAT.md            the shared on-disk format (chunks + JSON manifest)
 ARCHITECTURE.md      design and failure model
 ```
+
+## Releases
+
+- **v5.0.0** deep verification and point-in-time restore: `snapvault verify
+  --deep` re-hashes every replica on every node with per-node corruption
+  reports (repair heals corrupt replicas from a good copy), and `svcore
+  restore --at` documents the point-in-time recovery flow.
+- **v4.0.0** cluster healing and topology changes: `snapvault repair`
+  re-replicates under-replicated chunks back to R after node failures;
+  `add-node` / `remove-node` rebalance placement with moved-chunk stats.
+- **v3.0.0** snapshot comparison and retention: `svcore diff` reports file
+  and chunk-level changes between snapshots; `svcore retain --keep-last N`
+  drops older snapshots and gc's the store, ordered by a new manifest `seq`
+  field.
+- **v2.0.0** garbage collection: `svcore drop` deletes a snapshot's manifest
+  and `svcore gc` (with `--dry-run`) reclaims chunks no manifest references,
+  never touching chunks shared with surviving snapshots.
+- **v1.0.0** initial release: content-addressed incremental snapshots,
+  replicated distribution, parallel verified restore.
 
 ## Requirements
 

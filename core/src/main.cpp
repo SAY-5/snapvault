@@ -16,6 +16,7 @@ const char* kUsage =
     "usage:\n"
     "  svcore snapshot <name> <dir> [--store DIR] [--chunk N]\n"
     "  svcore restore  <name> <dir> [--store DIR]\n"
+    "  svcore restore  --at <name> <dir> [--store DIR]\n"
     "  svcore verify   [name]       [--store DIR]\n"
     "  svcore drop     <name>       [--store DIR]\n"
     "  svcore gc       [--dry-run]  [--store DIR]\n"
@@ -26,13 +27,15 @@ const char* kUsage =
     "  --store DIR    content store root (default: ./svstore)\n"
     "  --chunk N      chunk size in bytes for snapshot (default: 4096)\n"
     "  --dry-run      list gc candidates without deleting anything\n"
-    "  --keep-last N  snapshots to keep during retain (newest first)\n";
+    "  --keep-last N  snapshots to keep during retain (newest first)\n"
+    "  --at NAME      snapshot to restore for point-in-time recovery\n";
 
 struct Args {
     std::string store = "svstore";
     size_t chunk = kDefaultChunkSize;
     bool dry_run = false;
     size_t keep_last = 0;
+    std::string at;
     std::vector<std::string> positional;
 };
 
@@ -48,6 +51,8 @@ Args parse(int argc, char** argv, int start) {
             a.dry_run = true;
         } else if (arg == "--keep-last" && i + 1 < argc) {
             a.keep_last = static_cast<size_t>(std::strtoul(argv[++i], nullptr, 10));
+        } else if (arg == "--at" && i + 1 < argc) {
+            a.at = argv[++i];
         } else {
             a.positional.push_back(arg);
         }
@@ -72,14 +77,22 @@ int cmd_snapshot(const Args& a) {
 }
 
 int cmd_restore(const Args& a) {
-    if (a.positional.size() < 2) {
-        std::cerr << "restore requires <name> <dir>\n";
+    // Point-in-time form: the snapshot comes from --at, leaving <dir> as the
+    // only positional. The plain form is <name> <dir>.
+    std::string name, dir;
+    if (!a.at.empty() && a.positional.size() >= 1) {
+        name = a.at;
+        dir = a.positional[0];
+    } else if (a.positional.size() >= 2) {
+        name = a.positional[0];
+        dir = a.positional[1];
+    } else {
+        std::cerr << "restore requires <name> <dir> (or --at <name> <dir>)\n";
         return 2;
     }
     Engine eng(a.store, a.chunk);
-    eng.restore(a.positional[0], a.positional[1]);
-    std::cout << "restored snapshot '" << a.positional[0] << "' to "
-              << a.positional[1] << "\n";
+    eng.restore(name, dir);
+    std::cout << "restored snapshot '" << name << "' to " << dir << "\n";
     return 0;
 }
 
