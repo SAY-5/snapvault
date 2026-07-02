@@ -1,11 +1,18 @@
 import { useEffect } from "react";
 import { runSelfCheck } from "./sim/selfcheck";
+import { useVault } from "./useVault";
+import Hero from "./components/Hero";
+import "./app.css";
 
 export default function App() {
+  const vault = useVault();
+
   useEffect(() => {
     const r = runSelfCheck();
-    // Faithful-port self-check, mirroring scripts/demo.sh.
-    console.groupCollapsed("%csnapvault sim self-check", "color:#35d0b5;font-weight:700");
+    console.groupCollapsed(
+      "%csnapvault sim self-check",
+      "color:#35d0b5;font-weight:700"
+    );
     for (const l of r.lines) console.log(l);
     console.log(
       "dedup:",
@@ -21,14 +28,8 @@ export default function App() {
   }, []);
 
   return (
-    <main style={{ padding: "4rem", textAlign: "center" }}>
-      <h1 style={{ fontSize: "3rem" }}>snapvault</h1>
-      <p style={{ color: "var(--ink-dim)" }}>
-        Back up once. Restore through a node failure.
-      </p>
-      <p className="mono" style={{ color: "var(--ink-faint)", fontSize: "0.85rem" }}>
-        open the console for the port self-check
-      </p>
-    </main>
+    <div className="sv-app">
+      <Hero vault={vault} />
+    </div>
   );
 }
