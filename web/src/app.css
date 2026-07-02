@@ -409,3 +409,26 @@
     transform: scale(0.8);
   }
 }
+
+/* Legend */
+.sv-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-right: 1.2rem;
+}
+.sv-legend::before {
+  content: "";
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  display: inline-block;
+}
+.sv-legend-new::before {
+  background: rgba(53, 208, 181, 0.5);
+  border: 1px solid var(--accent);
+}
+.sv-legend-dedup::before {
+  background: rgba(107, 169, 207, 0.3);
+  border: 1px solid var(--steel-bright);
+}

@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { runSelfCheck } from "./sim/selfcheck";
 import { useVault } from "./useVault";
 import Hero from "./components/Hero";
+import ChunksDedup from "./components/ChunksDedup";
 import "./app.css";
 
 export default function App() {
@@ -30,6 +31,7 @@ export default function App() {
   return (
     <div className="sv-app">
       <Hero vault={vault} />
+      <ChunksDedup vault={vault} />
     </div>
   );
 }
