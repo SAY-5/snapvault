@@ -1,0 +1,46 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  cpp:
+    name: C++ engine (cmake + ctest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S core -B core/build -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build core/build
+      - name: Test
+        run: ctest --test-dir core/build --output-on-failure
+
+  go:
+    name: Go distribution layer (build + vet + race)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: Build
+        run: go build ./...
+      - name: Vet
+        run: go vet ./...
+      - name: Test (race)
+        run: go test ./... -race
+
+  demo:
+    name: End-to-end demo
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: make demo
+        run: make demo
