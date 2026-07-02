@@ -19,6 +19,10 @@ struct FileEntry {
 struct Manifest {
     std::string name;
     uint32_t chunk_size = 0;
+    // Monotonically increasing sequence number assigned by the engine at
+    // snapshot time; orders snapshots oldest to newest. 0 in manifests
+    // written before the field existed (treated as oldest).
+    uint64_t seq = 0;
     std::vector<FileEntry> files;
 
     // Serialize to the on-disk JSON format documented in FORMAT.md.

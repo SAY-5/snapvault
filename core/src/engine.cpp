@@ -1,5 +1,7 @@
 #include "snapvault/engine.h"
 
+#include <algorithm>
+#include <map>
 #include <set>
 #include <stdexcept>
 
@@ -29,6 +31,14 @@ SnapshotStats Engine::snapshot(const std::string& name, const std::string& dir) 
     Manifest manifest;
     manifest.name = name;
     manifest.chunk_size = static_cast<uint32_t>(chunk_size_);
+
+    // Order snapshots by a monotonically increasing sequence number.
+    uint64_t max_seq = 0;
+    for (const std::string& existing : snapshot_names()) {
+        Manifest prev = load_manifest(existing);
+        if (prev.seq > max_seq) max_seq = prev.seq;
+    }
+    manifest.seq = max_seq + 1;
 
     SnapshotStats stats;
     for (const std::string& rel : fsutil::list_files(dir)) {
@@ -158,6 +168,75 @@ GcStats Engine::gc(bool dry_run) {
             ++stats.removed;
         }
     }
+    return stats;
+}
+
+DiffResult Engine::diff(const std::string& a, const std::string& b) const {
+    Manifest ma = load_manifest(a);
+    Manifest mb = load_manifest(b);
+
+    std::map<std::string, const FileEntry*> in_a, in_b;
+    for (const FileEntry& fe : ma.files) in_a[fe.path] = &fe;
+    for (const FileEntry& fe : mb.files) in_b[fe.path] = &fe;
+
+    DiffResult d;
+    for (const auto& [path, fe] : in_b) {
+        auto it = in_a.find(path);
+        if (it == in_a.end()) {
+            d.added.push_back(path);
+        } else if (it->second->chunks != fe->chunks) {
+            d.changed.push_back(path);
+        } else {
+            ++d.unchanged;
+        }
+    }
+    for (const auto& [path, fe] : in_a) {
+        (void)fe;
+        if (!in_b.count(path)) d.removed.push_back(path);
+    }
+
+    std::set<std::string> ca, cb;
+    for (const FileEntry& fe : ma.files) ca.insert(fe.chunks.begin(), fe.chunks.end());
+    for (const FileEntry& fe : mb.files) cb.insert(fe.chunks.begin(), fe.chunks.end());
+    for (const std::string& h : cb) {
+        if (ca.count(h)) ++d.chunks_shared;
+        else ++d.chunks_added;
+    }
+    for (const std::string& h : ca) {
+        if (!cb.count(h)) ++d.chunks_removed;
+    }
+    return d;
+}
+
+RetainStats Engine::retain(size_t keep_last) {
+    if (keep_last < 1) {
+        throw std::runtime_error("retain requires keeping at least 1 snapshot");
+    }
+
+    // Sort newest first: by sequence number, name as a tie-break.
+    std::vector<Manifest> all;
+    for (const std::string& name : snapshot_names()) {
+        all.push_back(load_manifest(name));
+    }
+    std::sort(all.begin(), all.end(), [](const Manifest& x, const Manifest& y) {
+        if (x.seq != y.seq) return x.seq > y.seq;
+        return x.name > y.name;
+    });
+
+    RetainStats stats;
+    for (size_t i = 0; i < all.size(); ++i) {
+        if (i < keep_last) {
+            stats.kept.push_back(all[i].name);
+        } else {
+            stats.dropped.push_back(all[i].name);
+        }
+    }
+    // Drop oldest first so the list reads chronologically.
+    std::reverse(stats.dropped.begin(), stats.dropped.end());
+    for (const std::string& name : stats.dropped) {
+        drop(name);
+    }
+    stats.gc = gc();
     return stats;
 }
 

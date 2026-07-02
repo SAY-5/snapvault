@@ -19,10 +19,13 @@ type FileEntry struct {
 	Chunks []string `json:"chunks"`
 }
 
-// Manifest is a snapshot: a named, ordered list of files.
+// Manifest is a snapshot: a named, ordered list of files. Seq orders
+// snapshots oldest to newest; manifests written before the field existed
+// carry 0 and sort oldest.
 type Manifest struct {
 	Name      string      `json:"name"`
 	ChunkSize uint32      `json:"chunk_size"`
+	Seq       uint64      `json:"seq"`
 	Files     []FileEntry `json:"files"`
 }
 

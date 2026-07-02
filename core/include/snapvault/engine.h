@@ -30,6 +30,25 @@ struct GcStats {
     std::vector<std::string> candidates;  // hashes eligible for removal
 };
 
+// Comparison of two snapshots, oldest first.
+struct DiffResult {
+    std::vector<std::string> added;    // paths only in the newer snapshot
+    std::vector<std::string> removed;  // paths only in the older snapshot
+    std::vector<std::string> changed;  // paths in both whose chunks differ
+    uint64_t unchanged = 0;            // paths in both with identical chunks
+    uint64_t chunks_added = 0;    // unique chunks only in the newer snapshot
+    uint64_t chunks_removed = 0;  // unique chunks only in the older snapshot
+    uint64_t chunks_shared = 0;   // unique chunks common to both
+};
+
+// Result of a retention pass: which snapshots were kept and dropped, and the
+// gc that ran afterwards.
+struct RetainStats {
+    std::vector<std::string> kept;     // newest first
+    std::vector<std::string> dropped;  // oldest first
+    GcStats gc;
+};
+
 // Result of a verify pass.
 struct VerifyResult {
     uint64_t checked = 0;
@@ -67,6 +86,14 @@ public:
     // Remove chunks referenced by no manifest. With dry_run, only report the
     // candidates without deleting anything.
     GcStats gc(bool dry_run = false);
+
+    // Compare two snapshots: files added, removed, and changed going from
+    // `a` to `b`, plus chunk-level stats.
+    DiffResult diff(const std::string& a, const std::string& b) const;
+
+    // Keep the newest `keep_last` snapshots (by sequence number), drop the
+    // rest, then gc the store. keep_last must be >= 1.
+    RetainStats retain(size_t keep_last);
 
     // Names of all snapshots in the store, sorted.
     std::vector<std::string> snapshot_names() const;

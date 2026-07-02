@@ -38,6 +38,7 @@ A snapshot manifest is a JSON object at `snapshots/<name>.json`:
 {
   "name": "daily-2026",
   "chunk_size": 4096,
+  "seq": 7,
   "files": [
     {
       "path": "dir/one.dat",
@@ -52,6 +53,10 @@ Fields:
 
 - `name` (string): the snapshot's identifier, matching the file name stem.
 - `chunk_size` (number): the chunk size used when the snapshot was taken.
+- `seq` (number): monotonically increasing sequence number assigned by the
+  engine at snapshot time; orders snapshots oldest to newest. Retention
+  (`svcore retain`) uses it to decide which snapshots are newest. Manifests
+  written before this field existed omit it and are treated as oldest (0).
 - `files` (array): one entry per regular file, ordered by path.
   - `path` (string): file path relative to the snapshot root, using `/`
     separators.

@@ -41,3 +41,11 @@ add_test(NAME snapshot COMMAND test_snapshot)
 add_executable(test_gc tests/test_gc.cpp)
 target_link_libraries(test_gc PRIVATE svcore_lib)
 add_test(NAME gc COMMAND test_gc)
+
+add_executable(test_diff tests/test_diff.cpp)
+target_link_libraries(test_diff PRIVATE svcore_lib)
+add_test(NAME diff COMMAND test_diff)
+
+add_executable(test_retain tests/test_retain.cpp)
+target_link_libraries(test_retain PRIVATE svcore_lib)
+add_test(NAME retain COMMAND test_retain)

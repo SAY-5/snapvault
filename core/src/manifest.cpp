@@ -122,6 +122,7 @@ std::string Manifest::to_json() const {
     os << "{\n";
     os << "  \"name\": \"" << json_escape(name) << "\",\n";
     os << "  \"chunk_size\": " << chunk_size << ",\n";
+    os << "  \"seq\": " << seq << ",\n";
     os << "  \"files\": [";
     for (size_t f = 0; f < files.size(); ++f) {
         const FileEntry& fe = files[f];
@@ -154,6 +155,8 @@ Manifest Manifest::from_json(const std::string& text) {
             m.name = p.parse_string();
         } else if (key == "chunk_size") {
             m.chunk_size = static_cast<uint32_t>(p.parse_uint());
+        } else if (key == "seq") {
+            m.seq = p.parse_uint();
         } else if (key == "files") {
             p.expect('[');
             p.skip_ws();

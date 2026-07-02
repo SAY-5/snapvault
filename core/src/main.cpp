@@ -19,16 +19,20 @@ const char* kUsage =
     "  svcore verify   [name]       [--store DIR]\n"
     "  svcore drop     <name>       [--store DIR]\n"
     "  svcore gc       [--dry-run]  [--store DIR]\n"
+    "  svcore diff     <snapA> <snapB> [--store DIR]\n"
+    "  svcore retain   --keep-last N   [--store DIR]\n"
     "\n"
     "options:\n"
-    "  --store DIR   content store root (default: ./svstore)\n"
-    "  --chunk N     chunk size in bytes for snapshot (default: 4096)\n"
-    "  --dry-run     list gc candidates without deleting anything\n";
+    "  --store DIR    content store root (default: ./svstore)\n"
+    "  --chunk N      chunk size in bytes for snapshot (default: 4096)\n"
+    "  --dry-run      list gc candidates without deleting anything\n"
+    "  --keep-last N  snapshots to keep during retain (newest first)\n";
 
 struct Args {
     std::string store = "svstore";
     size_t chunk = kDefaultChunkSize;
     bool dry_run = false;
+    size_t keep_last = 0;
     std::vector<std::string> positional;
 };
 
@@ -42,6 +46,8 @@ Args parse(int argc, char** argv, int start) {
             a.chunk = static_cast<size_t>(std::strtoul(argv[++i], nullptr, 10));
         } else if (arg == "--dry-run") {
             a.dry_run = true;
+        } else if (arg == "--keep-last" && i + 1 < argc) {
+            a.keep_last = static_cast<size_t>(std::strtoul(argv[++i], nullptr, 10));
         } else {
             a.positional.push_back(arg);
         }
@@ -122,6 +128,42 @@ int cmd_gc(const Args& a) {
     return 0;
 }
 
+int cmd_diff(const Args& a) {
+    if (a.positional.size() < 2) {
+        std::cerr << "diff requires <snapA> <snapB>\n";
+        return 2;
+    }
+    Engine eng(a.store, a.chunk);
+    DiffResult d = eng.diff(a.positional[0], a.positional[1]);
+    std::cout << "diff " << a.positional[0] << " -> " << a.positional[1] << "\n";
+    for (const std::string& p : d.added) std::cout << "  added    " << p << "\n";
+    for (const std::string& p : d.removed) std::cout << "  removed  " << p << "\n";
+    for (const std::string& p : d.changed) std::cout << "  changed  " << p << "\n";
+    std::cout << "  files: " << d.added.size() << " added, "
+              << d.removed.size() << " removed, "
+              << d.changed.size() << " changed, "
+              << d.unchanged << " unchanged\n"
+              << "  chunks: " << d.chunks_added << " added, "
+              << d.chunks_removed << " removed, "
+              << d.chunks_shared << " shared\n";
+    return 0;
+}
+
+int cmd_retain(const Args& a) {
+    if (a.keep_last < 1) {
+        std::cerr << "retain requires --keep-last N (N >= 1)\n";
+        return 2;
+    }
+    Engine eng(a.store, a.chunk);
+    RetainStats s = eng.retain(a.keep_last);
+    std::cout << "retain --keep-last " << a.keep_last << "\n";
+    for (const std::string& n : s.kept) std::cout << "  kept     " << n << "\n";
+    for (const std::string& n : s.dropped) std::cout << "  dropped  " << n << "\n";
+    std::cout << "  gc reclaimed " << s.gc.removed << " chunks ("
+              << s.gc.bytes_reclaimed << " bytes)\n";
+    return 0;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -137,6 +179,8 @@ int main(int argc, char** argv) {
         if (sub == "verify") return cmd_verify(a);
         if (sub == "drop") return cmd_drop(a);
         if (sub == "gc") return cmd_gc(a);
+        if (sub == "diff") return cmd_diff(a);
+        if (sub == "retain") return cmd_retain(a);
         if (sub == "-h" || sub == "--help" || sub == "help") {
             std::cout << kUsage;
             return 0;
