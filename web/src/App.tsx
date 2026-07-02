@@ -5,6 +5,7 @@ import Hero from "./components/Hero";
 import ChunksDedup from "./components/ChunksDedup";
 import Distribution from "./components/Distribution";
 import FailureRestore from "./components/FailureRestore";
+import Footer from "./components/Footer";
 import "./app.css";
 
 export default function App() {
@@ -31,11 +32,19 @@ export default function App() {
   }, []);
 
   return (
-    <div className="sv-app">
-      <Hero vault={vault} />
-      <ChunksDedup vault={vault} />
-      <Distribution vault={vault} />
-      <FailureRestore vault={vault} />
-    </div>
+    <>
+      <a className="sv-skip" href="#chunks">
+        Skip to the walkthrough
+      </a>
+      <div className="sv-app">
+        <Hero vault={vault} />
+        <main id="main">
+          <ChunksDedup vault={vault} />
+          <Distribution vault={vault} />
+          <FailureRestore vault={vault} />
+        </main>
+        <Footer />
+      </div>
+    </>
   );
 }
