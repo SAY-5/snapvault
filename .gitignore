@@ -1,0 +1,18 @@
+# C++ build
+core/build/
+*.o
+*.a
+*.out
+
+# Go
+/snapvault
+/svcore
+bin/
+
+# Demo scratch
+demo/
+*.tmp
+
+# Editor / OS
+.DS_Store
+*.swp
