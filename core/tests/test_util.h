@@ -31,12 +31,19 @@ inline int summary(const char* name) {
     return 1;
 }
 
-// Create a unique temporary directory path (not created on disk yet).
+inline int& counter() {
+    static int c = 0;
+    return c;
+}
+
+// Create a unique, freshly-cleaned temporary directory path. Unique per call
+// (pid + monotonic counter) so re-running a test never sees stale chunks.
 inline std::string temp_dir(const std::string& tag) {
     const char* base = std::getenv("TMPDIR");
     std::string root = base ? base : "/tmp";
     if (!root.empty() && root.back() == '/') root.pop_back();
-    return root + "/svtest_" + tag + "_" + std::to_string(::getpid());
+    return root + "/svtest_" + tag + "_" + std::to_string(::getpid()) + "_" +
+           std::to_string(counter()++);
 }
 
 }  // namespace svtest

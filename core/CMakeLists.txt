@@ -20,6 +20,8 @@ add_library(svcore_lib
   src/chunker.cpp
   src/fs_util.cpp
   src/content_store.cpp
+  src/manifest.cpp
+  src/engine.cpp
 )
 target_include_directories(svcore_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
@@ -28,3 +30,7 @@ enable_testing()
 add_executable(test_hash_chunk tests/test_hash_chunk.cpp)
 target_link_libraries(test_hash_chunk PRIVATE svcore_lib)
 add_test(NAME hash_chunk COMMAND test_hash_chunk)
+
+add_executable(test_snapshot tests/test_snapshot.cpp)
+target_link_libraries(test_snapshot PRIVATE svcore_lib)
+add_test(NAME snapshot COMMAND test_snapshot)
