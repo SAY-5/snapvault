@@ -1,6 +1,7 @@
 #ifndef SNAPVAULT_FS_UTIL_H
 #define SNAPVAULT_FS_UTIL_H
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -21,6 +22,12 @@ std::string read_file(const std::string& path);
 
 // Write a string to a file, creating parent directories as needed.
 void write_file(const std::string& path, const std::string& data);
+
+// Delete a file. Throws std::runtime_error if it cannot be removed.
+void remove_file(const std::string& path);
+
+// Size of a file in bytes. Throws std::runtime_error if it does not exist.
+uint64_t file_size(const std::string& path);
 
 // Recursively list regular files under root, returning paths relative to root
 // (using '/' separators). Sorted for determinism.

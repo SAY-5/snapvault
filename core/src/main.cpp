@@ -17,14 +17,18 @@ const char* kUsage =
     "  svcore snapshot <name> <dir> [--store DIR] [--chunk N]\n"
     "  svcore restore  <name> <dir> [--store DIR]\n"
     "  svcore verify   [name]       [--store DIR]\n"
+    "  svcore drop     <name>       [--store DIR]\n"
+    "  svcore gc       [--dry-run]  [--store DIR]\n"
     "\n"
     "options:\n"
     "  --store DIR   content store root (default: ./svstore)\n"
-    "  --chunk N     chunk size in bytes for snapshot (default: 4096)\n";
+    "  --chunk N     chunk size in bytes for snapshot (default: 4096)\n"
+    "  --dry-run     list gc candidates without deleting anything\n";
 
 struct Args {
     std::string store = "svstore";
     size_t chunk = kDefaultChunkSize;
+    bool dry_run = false;
     std::vector<std::string> positional;
 };
 
@@ -36,6 +40,8 @@ Args parse(int argc, char** argv, int start) {
             a.store = argv[++i];
         } else if (arg == "--chunk" && i + 1 < argc) {
             a.chunk = static_cast<size_t>(std::strtoul(argv[++i], nullptr, 10));
+        } else if (arg == "--dry-run") {
+            a.dry_run = true;
         } else {
             a.positional.push_back(arg);
         }
@@ -87,6 +93,35 @@ int cmd_verify(const Args& a) {
     return 0;
 }
 
+int cmd_drop(const Args& a) {
+    if (a.positional.empty()) {
+        std::cerr << "drop requires <name>\n";
+        return 2;
+    }
+    Engine eng(a.store, a.chunk);
+    eng.drop(a.positional[0]);
+    std::cout << "dropped snapshot '" << a.positional[0]
+              << "' (run gc to reclaim unreferenced chunks)\n";
+    return 0;
+}
+
+int cmd_gc(const Args& a) {
+    Engine eng(a.store, a.chunk);
+    GcStats s = eng.gc(a.dry_run);
+    std::cout << (a.dry_run ? "gc (dry run)\n" : "gc\n")
+              << "  chunks scanned : " << s.scanned << "\n"
+              << "  referenced     : " << s.referenced << "\n"
+              << "  candidates     : " << s.candidates.size() << "\n"
+              << (a.dry_run ? "  would reclaim  : " : "  reclaimed      : ")
+              << s.bytes_reclaimed << " bytes\n";
+    if (a.dry_run) {
+        for (const std::string& h : s.candidates) {
+            std::cout << "  candidate " << h << "\n";
+        }
+    }
+    return 0;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -100,6 +135,8 @@ int main(int argc, char** argv) {
         if (sub == "snapshot") return cmd_snapshot(a);
         if (sub == "restore") return cmd_restore(a);
         if (sub == "verify") return cmd_verify(a);
+        if (sub == "drop") return cmd_drop(a);
+        if (sub == "gc") return cmd_gc(a);
         if (sub == "-h" || sub == "--help" || sub == "help") {
             std::cout << kUsage;
             return 0;

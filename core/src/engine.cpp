@@ -113,4 +113,52 @@ VerifyResult Engine::verify(const std::string& name) const {
     return result;
 }
 
+std::vector<std::string> Engine::snapshot_names() const {
+    std::vector<std::string> names;
+    if (!fsutil::is_dir(snapshots_dir_)) return names;
+    for (const std::string& rel : fsutil::list_files(snapshots_dir_)) {
+        const std::string ext = ".json";
+        if (rel.size() > ext.size() &&
+            rel.compare(rel.size() - ext.size(), ext.size(), ext) == 0) {
+            names.push_back(rel.substr(0, rel.size() - ext.size()));
+        }
+    }
+    return names;
+}
+
+void Engine::drop(const std::string& name) {
+    std::string path = manifest_path(name);
+    if (!fsutil::exists(path)) {
+        throw std::runtime_error("snapshot not found: " + name);
+    }
+    fsutil::remove_file(path);
+}
+
+GcStats Engine::gc(bool dry_run) {
+    // Everything referenced by any remaining manifest is live.
+    std::set<std::string> live;
+    for (const std::string& name : snapshot_names()) {
+        Manifest m = load_manifest(name);
+        for (const FileEntry& fe : m.files) {
+            for (const std::string& h : fe.chunks) live.insert(h);
+        }
+    }
+
+    GcStats stats;
+    stats.referenced = live.size();
+    std::string chunks_dir = fsutil::join(root_, "chunks");
+    if (!fsutil::is_dir(chunks_dir)) return stats;
+    for (const std::string& hash : fsutil::list_files(chunks_dir)) {
+        ++stats.scanned;
+        if (live.count(hash)) continue;
+        stats.bytes_reclaimed += fsutil::file_size(store_.chunk_path(hash));
+        stats.candidates.push_back(hash);
+        if (!dry_run) {
+            fsutil::remove_file(store_.chunk_path(hash));
+            ++stats.removed;
+        }
+    }
+    return stats;
+}
+
 }  // namespace snapvault

@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include "snapvault/chunker.h"
 #include "snapvault/content_store.h"
@@ -18,6 +19,15 @@ struct SnapshotStats {
     uint64_t new_chunks = 0;   // chunks newly written to the store
     uint64_t deduped_chunks = 0;  // chunks skipped because already present
     uint64_t bytes = 0;        // total bytes across all files
+};
+
+// Result of a garbage collection pass.
+struct GcStats {
+    uint64_t scanned = 0;      // chunk files inspected in the store
+    uint64_t referenced = 0;   // chunks referenced by at least one manifest
+    uint64_t removed = 0;      // candidates deleted (0 on a dry run)
+    uint64_t bytes_reclaimed = 0;  // bytes of the candidate chunks
+    std::vector<std::string> candidates;  // hashes eligible for removal
 };
 
 // Result of a verify pass.
@@ -49,6 +59,17 @@ public:
     // Re-hash every chunk referenced by snapshot `name` (or all stored chunks
     // if name is empty) and confirm each matches its content-address.
     VerifyResult verify(const std::string& name = "") const;
+
+    // Delete the manifest for snapshot `name`. The snapshot's chunks stay in
+    // the store until a gc pass finds them unreferenced.
+    void drop(const std::string& name);
+
+    // Remove chunks referenced by no manifest. With dry_run, only report the
+    // candidates without deleting anything.
+    GcStats gc(bool dry_run = false);
+
+    // Names of all snapshots in the store, sorted.
+    std::vector<std::string> snapshot_names() const;
 
     const ContentStore& store() const { return store_; }
     std::string manifest_path(const std::string& name) const;

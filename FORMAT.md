@@ -25,6 +25,10 @@ single source of truth for that format; changing it means changing both sides.
 - Storing a chunk whose hash already exists is a no-op (deduplication).
 - Integrity check: re-hashing the bytes of `chunks/<hash>` must reproduce
   `<hash>`. Any mismatch is corruption.
+- Lifecycle: a chunk is live while at least one manifest references it.
+  Deleting a manifest (`svcore drop`) un-references its chunks; a garbage
+  collection pass (`svcore gc`) may then delete any chunk file referenced by
+  no manifest. gc never touches referenced chunks.
 
 ## Manifest
 

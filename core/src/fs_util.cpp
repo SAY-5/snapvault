@@ -3,6 +3,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <dirent.h>
+#include <unistd.h>
 
 #include <algorithm>
 #include <cerrno>
@@ -74,6 +75,22 @@ void write_file(const std::string& path, const std::string& data) {
     if (!out) throw std::runtime_error("cannot write file: " + path);
     out.write(data.data(), static_cast<std::streamsize>(data.size()));
     if (!out) throw std::runtime_error("write failed: " + path);
+}
+
+void remove_file(const std::string& path) {
+    if (::unlink(path.c_str()) != 0) {
+        throw std::runtime_error("cannot remove file " + path + ": " +
+                                 std::strerror(errno));
+    }
+}
+
+uint64_t file_size(const std::string& path) {
+    struct stat st;
+    if (::stat(path.c_str(), &st) != 0) {
+        throw std::runtime_error("cannot stat file " + path + ": " +
+                                 std::strerror(errno));
+    }
+    return static_cast<uint64_t>(st.st_size);
 }
 
 static void walk(const std::string& base, const std::string& rel,

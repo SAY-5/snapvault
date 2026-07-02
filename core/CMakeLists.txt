@@ -37,3 +37,7 @@ add_test(NAME hash_chunk COMMAND test_hash_chunk)
 add_executable(test_snapshot tests/test_snapshot.cpp)
 target_link_libraries(test_snapshot PRIVATE svcore_lib)
 add_test(NAME snapshot COMMAND test_snapshot)
+
+add_executable(test_gc tests/test_gc.cpp)
+target_link_libraries(test_gc PRIVATE svcore_lib)
+add_test(NAME gc COMMAND test_gc)

@@ -37,11 +37,16 @@ make demo      # full pipeline on a synthesized mock dataset
 svcore snapshot <name> <dir> [--store DIR] [--chunk N]
 svcore restore  <name> <dir> [--store DIR]
 svcore verify   [name]       [--store DIR]
+svcore drop     <name>       [--store DIR]
+svcore gc       [--dry-run]  [--store DIR]
 ```
 
 `snapshot` chunks every file, stores new chunks (deduplicating existing ones),
 and writes a manifest. A second snapshot only stores chunks whose content is
 new. `verify` re-hashes every stored chunk against its content-address.
+`drop` deletes a snapshot's manifest, and `gc` reclaims chunks that no
+remaining manifest references (`--dry-run` lists the candidates first);
+chunks still shared with other snapshots survive.
 
 ### Go distribution layer: `snapvault`
 
