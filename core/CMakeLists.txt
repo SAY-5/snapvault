@@ -25,6 +25,9 @@ add_library(svcore_lib
 )
 target_include_directories(svcore_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
+add_executable(svcore src/main.cpp)
+target_link_libraries(svcore PRIVATE svcore_lib)
+
 enable_testing()
 
 add_executable(test_hash_chunk tests/test_hash_chunk.cpp)
