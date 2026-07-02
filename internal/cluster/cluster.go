@@ -23,11 +23,16 @@ type Node struct {
 	data map[string][]byte
 }
 
-// Cluster is a fixed set of nodes with a replication factor.
+// Cluster is a set of nodes with a replication factor. The node count is
+// fixed at construction but can change later via AddNode and RemoveNode,
+// which rebalance chunk placement.
 type Cluster struct {
 	mu     sync.RWMutex
 	nodes  []*Node
 	replic int
+	// extra records replicas outside the derived placement (created by
+	// repair), loaded from a saved state for re-materialization.
+	extra map[string][]int
 }
 
 // New builds a cluster of n nodes with replication factor r. It requires
@@ -52,6 +57,13 @@ func (c *Cluster) NodeCount() int { return len(c.nodes) }
 // Replication returns the replication factor.
 func (c *Cluster) Replication() int { return c.replic }
 
+// placementStart seeds the first replica node from the chunk hash.
+func placementStart(hash string, n int) int {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(hash))
+	return int(h.Sum64() % uint64(n))
+}
+
 // Placement returns the deterministic, sorted list of node IDs that should
 // hold a replica of the chunk with the given hash. It is a pure function of
 // the hash, node count, and replication factor.
@@ -59,9 +71,7 @@ func (c *Cluster) Placement(hash string) []int {
 	n := len(c.nodes)
 	// Seed a starting node from the hash, then walk consecutive nodes so the
 	// r replicas are always distinct.
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(hash))
-	start := int(h.Sum64() % uint64(n))
+	start := placementStart(hash, n)
 	ids := make([]int, 0, c.replic)
 	for i := 0; i < c.replic; i++ {
 		ids = append(ids, (start+i)%n)
@@ -83,8 +93,10 @@ func (c *Cluster) Put(hash string, data []byte) {
 	}
 }
 
-// Get fetches a chunk from the first available (up) replica that holds it.
-// Returns ErrChunkUnavailable if no up node has the chunk.
+// Get fetches a chunk from the first available (up) replica that holds it,
+// preferring the derived placement set and falling back to any up node (a
+// repaired replica can live outside the placement set). Returns
+// ErrChunkUnavailable if no up node has the chunk.
 func (c *Cluster) Get(hash string) ([]byte, int, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -97,6 +109,16 @@ func (c *Cluster) Get(hash string) ([]byte, int, error) {
 			out := make([]byte, len(buf))
 			copy(out, buf)
 			return out, id, nil
+		}
+	}
+	for _, node := range c.nodes {
+		if !node.up {
+			continue
+		}
+		if buf, ok := node.data[hash]; ok {
+			out := make([]byte, len(buf))
+			copy(out, buf)
+			return out, node.ID, nil
 		}
 	}
 	return nil, -1, ErrChunkUnavailable
@@ -144,8 +166,7 @@ func (c *Cluster) Status() []NodeStatus {
 func (c *Cluster) ChunkAvailable(hash string) bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	for _, id := range c.Placement(hash) {
-		n := c.nodes[id]
+	for _, n := range c.nodes {
 		if n.up {
 			if _, ok := n.data[hash]; ok {
 				return true
@@ -153,4 +174,57 @@ func (c *Cluster) ChunkAvailable(hash string) bool {
 		}
 	}
 	return false
+}
+
+// Holders returns the sorted node IDs currently holding the chunk, whether
+// or not those nodes are up.
+func (c *Cluster) Holders(hash string) []int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	var ids []int
+	for _, n := range c.nodes {
+		if _, ok := n.data[hash]; ok {
+			ids = append(ids, n.ID)
+		}
+	}
+	sort.Ints(ids)
+	return ids
+}
+
+// LiveReplicas returns the number of up nodes currently holding the chunk.
+func (c *Cluster) LiveReplicas(hash string) int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.liveReplicasLocked(hash)
+}
+
+func (c *Cluster) liveReplicasLocked(hash string) int {
+	live := 0
+	for _, n := range c.nodes {
+		if !n.up {
+			continue
+		}
+		if _, ok := n.data[hash]; ok {
+			live++
+		}
+	}
+	return live
+}
+
+// Rematerialize restores a chunk's replicas from the on-disk store: the
+// derived placement set plus any extra replica locations recorded in a saved
+// state (created by an earlier repair).
+func (c *Cluster) Rematerialize(hash string, data []byte) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	ids := c.Placement(hash)
+	ids = append(ids, c.extra[hash]...)
+	for _, id := range ids {
+		if id < 0 || id >= len(c.nodes) {
+			continue
+		}
+		buf := make([]byte, len(data))
+		copy(buf, data)
+		c.nodes[id].data[hash] = buf
+	}
 }

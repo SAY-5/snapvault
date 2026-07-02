@@ -59,6 +59,9 @@ snapvault put      <snapshot> [--store DIR] [--nodes N] [--replicas R]
 snapvault restore  <snapshot> <dir> [--store DIR] [--parallel N]
 snapvault fail-node <id> [--store DIR]
 snapvault recover  [--store DIR]
+snapvault repair   [--store DIR]
+snapvault add-node [--store DIR]
+snapvault remove-node <id> [--store DIR]
 snapvault status   [--store DIR]
 ```
 
@@ -66,7 +69,10 @@ snapvault status   [--store DIR]
 replication. `restore` fetches chunks concurrently from whichever nodes are up,
 verifies each chunk's hash on arrival, and reassembles the files. `fail-node`
 and `recover` drive the failure simulation; `status` reports per-node chunk
-counts and replication health.
+counts, replication health, and under-replicated chunks. `repair` re-replicates
+any chunk whose live replica count fell below R after node failures, copying
+from a surviving replica to healthy nodes. `add-node` and `remove-node` change
+the topology and rebalance placement, reporting how many chunks moved.
 
 ## `make demo` output
 

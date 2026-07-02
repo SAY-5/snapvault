@@ -72,6 +72,16 @@ it. If every replica of some chunk is down, the restore fails cleanly with
 `ErrChunkUnavailable` rather than producing a corrupt file. Recovery marks
 nodes up again and a subsequent restore succeeds.
 
+`repair` closes the window between failures: it scans every chunk, and any
+chunk whose live replica count (copies on up nodes) fell below R is copied
+from a surviving replica to healthy nodes chosen deterministically, so the
+cluster tolerates the next R-1 failures again. Repaired replicas can live
+outside the derived placement set; reads fall back to them and their
+locations persist in `cluster.json`. `add-node` and `remove-node` change the
+topology: placement is a function of the node count, so both trigger a
+rebalance that moves each chunk onto its new placement set (a deterministic,
+reported set of copies).
+
 ## Why the two-language split
 
 The engine is CPU-bound, byte-exact work (hashing, chunking, filesystem I/O)

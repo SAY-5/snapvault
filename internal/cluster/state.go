@@ -14,9 +14,13 @@ type State struct {
 	Nodes       int   `json:"nodes"`
 	Replication int   `json:"replication"`
 	Down        []int `json:"down"`
+	// Extra records replicas living outside the derived placement (created
+	// by repair while nodes were down), keyed by chunk hash.
+	Extra map[string][]int `json:"extra,omitempty"`
 }
 
-// SaveState writes the cluster's configuration and down-node set to path.
+// SaveState writes the cluster's configuration, down-node set, and any
+// off-placement replica locations to path.
 func (c *Cluster) SaveState(path string) error {
 	c.mu.RLock()
 	st := State{Nodes: len(c.nodes), Replication: c.replic}
@@ -25,8 +29,35 @@ func (c *Cluster) SaveState(path string) error {
 			st.Down = append(st.Down, n.ID)
 		}
 	}
+	held := 0
+	for _, n := range c.nodes {
+		held += len(n.data)
+		for h := range n.data {
+			placed := false
+			for _, id := range c.Placement(h) {
+				if id == n.ID {
+					placed = true
+					break
+				}
+			}
+			if !placed {
+				if st.Extra == nil {
+					st.Extra = make(map[string][]int)
+				}
+				st.Extra[h] = append(st.Extra[h], n.ID)
+			}
+		}
+	}
+	if held == 0 {
+		// A cluster loaded without re-materialized chunk data (fail-node,
+		// recover) must not lose previously recorded extra replicas.
+		st.Extra = c.extra
+	}
 	c.mu.RUnlock()
 	sort.Ints(st.Down)
+	for _, ids := range st.Extra {
+		sort.Ints(ids)
+	}
 	data, err := json.MarshalIndent(st, "", "  ")
 	if err != nil {
 		return err
@@ -54,5 +85,6 @@ func LoadState(path string) (*Cluster, error) {
 			return nil, err
 		}
 	}
+	c.extra = st.Extra
 	return c, nil
 }

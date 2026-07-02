@@ -200,6 +200,50 @@ func TestRestoreFailsCleanlyWhenAllReplicasDown(t *testing.T) {
 	}
 }
 
+func TestRestoreAfterRepairSurvivesTwoFailures(t *testing.T) {
+	// R=3 tolerates two failures only if a repair runs between them. Fail a
+	// node, repair back to full replication, fail another: every chunk still
+	// has a live replica and the restore verifies byte-for-byte.
+	files := map[string][]byte{"r.bin": makePattern("r", 20000)}
+	s, m := buildStore(t, files, 1024)
+	c, err := cluster.New(5, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Distribute(s, c, m); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := c.SetUp(0, false); err != nil {
+		t.Fatal(err)
+	}
+	st := c.Repair()
+	if len(st.Unrepairable) != 0 {
+		t.Fatalf("unrepairable chunks: %v", st.Unrepairable)
+	}
+	for _, h := range m.UniqueChunks() {
+		if live := c.LiveReplicas(h); live != 3 {
+			t.Fatalf("chunk %s has %d live replicas after repair, want 3", h, live)
+		}
+	}
+	if err := c.SetUp(1, false); err != nil {
+		t.Fatal(err)
+	}
+
+	out := t.TempDir()
+	stats, err := Restore(c, m, out, 4)
+	if err != nil {
+		t.Fatalf("restore after repair failed: %v", err)
+	}
+	if stats.Verified != stats.Chunks {
+		t.Fatalf("verified %d != chunks %d", stats.Verified, stats.Chunks)
+	}
+	got, _ := os.ReadFile(filepath.Join(out, "r.bin"))
+	if string(got) != string(files["r.bin"]) {
+		t.Fatal("restored file mismatch after repair")
+	}
+}
+
 // makePattern builds distinct-per-chunk content so fixed-size chunking yields
 // unique chunks and dedup does not collapse them.
 func makePattern(seed string, n int) []byte {
